@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Universal Chat Filter
+## Notes: Hide chat messages containing blocked words or phrases across standard chat channels.
+## Author: ChatGPT
+## Version: 2.0.0
+## SavedVariables: UniversalChatFilterDB
+
+UniversalChatFilter.lua
