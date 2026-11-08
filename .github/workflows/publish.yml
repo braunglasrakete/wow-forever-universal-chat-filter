@@ -1,45 +1,47 @@
-name: Publish Universal Chat Filter v2.0.0
+name: Package Universal Chat Filter releases
 
 on:
   push:
-    branches: [main]
+    tags:
+      - "v*"
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
+concurrency:
+  group: universal-chat-filter-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  publish:
-    if: github.repository == 'braunglasrakete/wow-forever-universal-chat-filter'
+  package:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out release source
         uses: actions/checkout@v4
 
-      - name: Restore and verify tested addon source
+      - name: Create installable addon ZIP
         run: |
-          base64 --decode .build/UniversalChatFilter.lua.gz.b64 | gzip -d > UniversalChatFilter/UniversalChatFilter.lua
-          echo "aaf2b87d073a47bfb9ad82f174ddcee66d95ae1e8158b1d30fa4749ad902d22a  UniversalChatFilter/UniversalChatFilter.lua" | sha256sum -c -
-          cp README.md UniversalChatFilter/README.txt
-
-      - name: Commit human-readable source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add UniversalChatFilter/UniversalChatFilter.lua UniversalChatFilter/README.txt
-          git rm .build/UniversalChatFilter.lua.gz.b64
-          git commit -m "Publish verified Universal Chat Filter v2.0.0 source"
-          git push origin HEAD:main
-
-      - name: Package installable addon
-        run: |
+          test -f UniversalChatFilter/UniversalChatFilter.toc
+          test -f UniversalChatFilter/UniversalChatFilter.lua
           zip -q -r Universal_Chat_Filter_WoW_Forever.zip UniversalChatFilter
-          unzip -l Universal_Chat_Filter_WoW_Forever.zip
 
-      - name: Create GitHub release
+      - name: Create release or attach missing ZIP
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create v2.0.0 Universal_Chat_Filter_WoW_Forever.zip \
-            --title "Universal Chat Filter v2.0.0" \
-            --notes-file RELEASE_NOTES.md \
-            --target "$(git rev-parse HEAD)"
+          ASSET="Universal_Chat_Filter_WoW_Forever.zip"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq "$ASSET"; then
+              echo "Release ZIP already exists; leaving it unchanged."
+            else
+              gh release upload "$RELEASE_TAG" "$ASSET"
+            fi
+          else
+            gh release create "$RELEASE_TAG" "$ASSET" \
+              --title "Universal Chat Filter $RELEASE_TAG" \
+              --generate-notes \
+              --target "${GITHUB_SHA}"
+          fi
